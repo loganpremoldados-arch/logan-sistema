@@ -14,12 +14,28 @@ export function OpportunityForm({ onClose, onSaved }: { onClose: () => void; onS
 
   const [form, setForm] = useState({
     customerId: "", contactName: "", phone: "", channelId: "", productId: "",
-    productDescription: "", quantity: "", estimatedValue: "", desiredDeadline: "", notes: "",
+    productDescription: "", quantity: "", desiredDeadline: "", notes: "",
   });
+  const [unitValue, setUnitValue] = useState("");
+  const [estimatedValue, setEstimatedValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
+
+  const quantityNum = Number(form.quantity) || 0;
+
+  function onUnitValueChange(v: string) {
+    setUnitValue(v);
+    const u = Number(v);
+    if (u > 0 && quantityNum > 0) setEstimatedValue(String(Math.round(u * quantityNum * 100) / 100));
+  }
+  function onQuantityChange(v: string) {
+    setForm({ ...form, quantity: v });
+    const q = Number(v);
+    const u = Number(unitValue);
+    if (u > 0 && q > 0) setEstimatedValue(String(Math.round(u * q * 100) / 100));
+  }
 
   async function createCustomerInline() {
     if (!newCustomerName.trim()) return;
@@ -44,7 +60,7 @@ export function OpportunityForm({ onClose, onSaved }: { onClose: () => void; onS
         productId: form.productId || null,
         productDescription: form.productDescription || null,
         quantity: form.quantity ? Number(form.quantity) : null,
-        estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : null,
+        estimatedValue: estimatedValue ? Number(estimatedValue) : null,
         desiredDeadline: form.desiredDeadline || null,
         notes: form.notes || null,
       });
@@ -90,8 +106,20 @@ export function OpportunityForm({ onClose, onSaved }: { onClose: () => void; onS
           </select>
         </div>
         <div><label>Produto de interesse (texto)</label><input value={form.productDescription} onChange={(e) => setForm({ ...form, productDescription: e.target.value })} /></div>
-        <div><label>Quantidade</label><input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></div>
-        <div><label>Valor estimado (R$)</label><input type="number" value={form.estimatedValue} onChange={(e) => setForm({ ...form, estimatedValue: e.target.value })} /></div>
+        <div><label>Quantidade</label><input type="number" value={form.quantity} onChange={(e) => onQuantityChange(e.target.value)} /></div>
+        <div>
+          <label>Valor unitário (R$) — opcional, só para calcular</label>
+          <input type="number" value={unitValue} onChange={(e) => onUnitValueChange(e.target.value)} placeholder="ex: 53" />
+        </div>
+        <div>
+          <label>Valor estimado TOTAL (R$)</label>
+          <input type="number" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} />
+          {quantityNum > 0 && Number(estimatedValue) > 0 && (
+            <div style={{ fontSize: 12, color: "var(--cinza-medio)" }}>
+              = {(Number(estimatedValue) / quantityNum).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por unidade × {quantityNum}
+            </div>
+          )}
+        </div>
         <div><label>Prazo desejado pelo cliente</label><input value={form.desiredDeadline} onChange={(e) => setForm({ ...form, desiredDeadline: e.target.value })} /></div>
         <div className="full"><label>Observações</label><textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ width: "100%" }} /></div>
       </div>
