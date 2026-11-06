@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useFetch } from "../../lib/useApi";
+import { api, ApiError } from "../../lib/api";
 import { formatBRL, formatDate } from "../../lib/format";
 import { customerProfileLabels, stageLabels, proposalStatusLabels } from "../../lib/labels";
 import { Badge } from "../../components/Badge";
+import { Modal } from "../../components/Modal";
 
 interface Detail {
   customer: any; contacts: any[]; opportunities: any[]; proposals: any[]; orders: any[];
@@ -15,8 +17,9 @@ const TABS = ["Dados cadastrais", "Oportunidades", "Propostas", "Pedidos", "Indi
 export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data } = useFetch<Detail>(`/customers/${id}`, [id]);
+  const { data, reload } = useFetch<Detail>(`/customers/${id}`, [id]);
   const [tab, setTab] = useState(0);
+  const [editing, setEditing] = useState(false);
 
   if (!data) return <p>Carregando...</p>;
   const { customer, opportunities, proposals, orders, indicators } = data;
@@ -28,7 +31,16 @@ export function ClienteDetail() {
           <h1>{customer.name}</h1>
           <div className="desc">{customer.code} · {customerProfileLabels[customer.profile]}</div>
         </div>
+        <button className="btn" onClick={() => setEditing(true)}>Editar cadastro</button>
       </div>
+
+      {editing && (
+        <ClienteEditForm
+          customer={customer}
+          onClose={() => setEditing(false)}
+          onSaved={() => { setEditing(false); reload(); }}
+        />
+      )}
 
       <div className="stat-grid">
         <div className="stat-card"><div className="label">Total vendido</div><div className="value">{formatBRL(indicators.totalSold)}</div></div>
@@ -114,5 +126,64 @@ export function ClienteDetail() {
         </div>
       )}
     </div>
+  );
+}
+
+function ClienteEditForm({ customer, onClose, onSaved }: { customer: any; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    name: customer.name ?? "",
+    tradeName: customer.tradeName ?? "",
+    document: customer.document ?? "",
+    phone: customer.phone ?? "",
+    whatsapp: customer.whatsapp ?? "",
+    email: customer.email ?? "",
+    address: customer.address ?? "",
+    city: customer.city ?? "",
+    state: customer.state ?? "",
+    zipCode: customer.zipCode ?? "",
+    profile: customer.profile ?? "OUTROS",
+    notes: customer.notes ?? "",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true); setError(null);
+    try {
+      await api.put(`/customers/${customer.id}`, form);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Erro ao salvar as alterações.");
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title={`Editar cliente — ${customer.code}`} onClose={onClose} wide footer={
+      <>
+        <button className="btn" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={save} disabled={saving || !form.name}>Salvar alterações</button>
+      </>
+    }>
+      <div className="form-grid">
+        <div className="full"><label>Nome ou razão social *</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+        <div><label>Nome fantasia</label><input value={form.tradeName} onChange={(e) => setForm({ ...form, tradeName: e.target.value })} /></div>
+        <div><label>CPF/CNPJ</label><input value={form.document} onChange={(e) => setForm({ ...form, document: e.target.value })} /></div>
+        <div>
+          <label>Perfil do cliente</label>
+          <select value={form.profile} onChange={(e) => setForm({ ...form, profile: e.target.value })}>
+            {Object.entries(customerProfileLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div><label>Telefone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+        <div><label>WhatsApp</label><input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></div>
+        <div><label>E-mail</label><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+        <div><label>Cidade</label><input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+        <div><label>Estado (UF)</label><input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} /></div>
+        <div><label>CEP</label><input value={form.zipCode} onChange={(e) => setForm({ ...form, zipCode: e.target.value })} /></div>
+        <div className="full"><label>Endereço</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+        <div className="full"><label>Observações</label><textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+      </div>
+      {error && <div className="error-text">{error}</div>}
+    </Modal>
   );
 }
